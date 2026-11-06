@@ -1,0 +1,74 @@
+name: Fork image
+
+# This fork's own image, built on every push to main:
+#
+#   docker pull ghcr.io/ya-hs/librarium-web:latest
+#   docker pull ghcr.io/ya-hs/librarium-web:<full commit sha>
+#
+# Upstream's Nightly and Release call FireBall1725/workflows and push to
+# ghcr.io/fireball1725, which this fork can't do, so they are disabled here
+# (`gh workflow disable`) and this replaces them.
+#
+# Runtime expectations, unchanged from upstream's image: it listens on 3000,
+# nginx proxies /api and /health to http://librarium-api:8080, so the API has
+# to be reachable under that name, and LIBRARIUM_BASE_PATH mounts it on a path.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: fork-image-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  image:
+    # Only in the fork. A copy of this file that reaches upstream does nothing.
+    if: github.repository == 'ya-hs/librarium-web'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ghcr.io/ya-hs/librarium-web
+    steps:
+      - uses: actions/checkout@v4
+
+      # The only value baked in at build time is the version the UI shows and
+      # sends to the API. 0.0.0-dev claims no upstream release, and the +sha
+      # tells builds apart, which also lets the "new version available" bar
+      # fire after a deploy (it never does for a bare 0.0.0-dev).
+      - name: Version
+        id: version
+        run: echo "version=0.0.0-dev+${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      # The builder stage is pinned to the build platform, so QEMU only runs
+      # the nginx stage's one chmod for arm64.
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            VERSION=${{ steps.version.outputs.version }}
+          tags: |
+            ${{ env.IMAGE }}:latest
+            ${{ env.IMAGE }}:${{ github.sha }}
+          labels: |
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
