@@ -10,6 +10,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getBarcodeReader } from '../../lib/barcodeDetector'
 import { pickCameraScan } from '../../lib/barcode'
+import { openScanCamera } from '../../lib/camera'
 import { Icon } from '../../lib/icons'
 
 const CAMERA_KEY = 'librarium:add-books:camera'
@@ -40,9 +41,7 @@ export default function CameraView({ onCode, onStop, onError }: {
     let frame = 0
     const start = async () => {
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: deviceId ? { deviceId: { exact: deviceId } } : { facingMode: 'environment' },
-        })
+        stream = await openScanCamera(deviceId)
       } catch {
         // A remembered camera that's been unplugged: fall back to any camera.
         if (deviceId) { setDeviceId(null); return }

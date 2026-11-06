@@ -29,6 +29,7 @@ import {
   type LastAccepted, type ScannedItem,
 } from '../lib/scanSession'
 import { registerScanTarget } from '../lib/barcodeScanner'
+import { openScanCamera } from '../lib/camera'
 import { barcodeIdentifier, classifyBarcode, editionForIdentifier, pickCameraScan, savableIdentifier, upcLookupCode, type ScannedIdentifier } from '../lib/barcode'
 import { useToast } from './Toast'
 import { Icon } from '../lib/icons'
@@ -306,7 +307,7 @@ export default function AddBookModal({ libraryId: libraryIdProp, libraries, medi
     continuousRef.current = continuous
     lastAcceptedRef.current = null
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+      const stream = await openScanCamera()
       streamRef.current = stream
       setScanning(true)
       // Give React time to render the video element
